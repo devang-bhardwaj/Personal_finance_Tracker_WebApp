@@ -1,135 +1,106 @@
 import streamlit as st
 import mysql.connector
 import bcrypt
+from streamlit_option_menu import option_menu
 import os
-from dotenv import load_dotenv
 
-load_dotenv()  # Load the .env file
+# Dummy user data (Replace with MySQL query for real implementation)
+users = {'user1': {'password': bcrypt.hashpw('password123'.encode('utf-8'), bcrypt.gensalt())}}
 
-def create_connection():
-    connection = mysql.connector.connect(
-        host="localhost",  # Update with your MySQL host
-        user="root",       # Update with your MySQL user
-        password=os.getenv("MYSQL_PASSWORD"),  # Get password from environment variable
-        database="finance_tracker"
-    )
-    return connection
+# Check if user is logged in using session state
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
 
-
-# Hash password
-def hash_password(password):
-    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
-
-# Verify hashed password
-def check_password(password, hashed):
-    return bcrypt.checkpw(password.encode('utf-8'), hashed)
-
-# Sign-Up function
-def sign_up():
-    
-    st.subheader("Create New Account")
-    
-    email = st.text_input("Email")
+# Login Form
+def login_form():
+    st.title("Login")
+    username = st.text_input("Username")
     password = st.text_input("Password", type="password")
-    confirm_password = st.text_input("Confirm Password", type="password")
-
-    if password == confirm_password:
-        if st.button("Sign Up"):
-            hashed_password = hash_password(password)
-            
-            connection = create_connection()
-            cursor = connection.cursor()
-
-            try:
-                cursor.execute("INSERT INTO users (email, password) VALUES (%s, %s)", (email, hashed_password))
-                connection.commit()
-                st.success("Account created successfully!")
-            except mysql.connector.Error as err:
-                st.error(f"Error: {err}")
-            finally:
-                cursor.close()
-                connection.close()
-    else:
-        st.warning("Passwords do not match")
-
-# Login function
-def login():
-    st.subheader("Login to Your Account")
-    
-    email = st.text_input("Email")
-    password = st.text_input("Password", type="password")
-    
     if st.button("Login"):
-        connection = create_connection()
-        cursor = connection.cursor()
-
-        cursor.execute("SELECT password FROM users WHERE email=%s", (email,))
-        result = cursor.fetchone()
-
-        if result:
-            hashed_password = result[0].encode('utf-8')  # Convert hashed password to bytes
-            
-            if check_password(password, hashed_password):
-                st.success("Login successful!")
-                st.session_state['logged_in'] = True
-                st.session_state['email'] = email
-                st.experimental_rerun()  # Refresh the page after successful login
-            else:
-                st.error("Incorrect password")
+        # Fetch user data from database
+        user_data = users.get(username)
+        if user_data and bcrypt.checkpw(password.encode('utf-8'), user_data['password']):
+            st.session_state.logged_in = True
+            st.success("Logged in successfully!")
+            st.experimental_rerun()
         else:
-            st.error("User not found")
-        
-        cursor.close()
-        connection.close()
+            st.error("Invalid username or password")
 
-# Logout function
+# Sign Up Form
+def signup_form():
+    st.title("Sign Up")
+    username = st.text_input("Choose a username")
+    password = st.text_input("Choose a password", type="password")
+    if st.button("Sign Up"):
+        if username in users:
+            st.error("Username already exists")
+        else:
+            hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+            users[username] = {'password': hashed_password}
+            st.success("Account created successfully! Please log in.")
+            st.experimental_rerun()
+
+# Logout Function
 def logout():
-    if st.button("Logout"):
-        st.session_state.clear()  # Clear all session state
-        st.experimental_rerun()  # Refresh the app to return to the login page
+    st.session_state.logged_in = False
+    st.experimental_rerun()
 
-# Main function
-# Main function
-def main():
-    st.title("Personal Finance Tracker")
+# Main Dashboard Page (shown after login)
+def main_dashboard():
+    st.title("Personal Finance Tracker Dashboard")
 
-    # Check if user is logged in
-    if 'logged_in' not in st.session_state:
-        st.session_state['logged_in'] = False
+    # Dropdown menu with logout option
+    selected = option_menu(
+        menu_title=None,
+        options=["Dashboard", "Add Transaction", "Transaction History", "Accounts"],
+        icons=["house", "plus", "list", "wallet"],
+        menu_icon="cast",
+        default_index=0,
+    )
+    
+    if selected == "Dashboard":
+        st.subheader("Overview of your Financial Data")
+    elif selected == "Add Transaction":
+        add_transaction_form()
+    elif selected == "Transaction History":
+        display_transaction_history()
+    elif selected == "Accounts":
+        st.subheader("Your Account Balances")
+    
+    # Dropdown menu logout option
+    with st.sidebar:
+        if st.button("Log Out"):
+            logout()
 
-    # If the user is logged in, show the main app with the menu and tools
-    if st.session_state['logged_in']:
-        st.sidebar.success(f"Logged in as {st.session_state['email']}")
-        
-        # Display app menu and tools
-        menu = ["Home", "Transaction Tracking", "Budget Allocation", "Account Management", "Logout"]
-        choice = st.sidebar.selectbox("Menu", menu)
+# Add Transaction Form
+def add_transaction_form():
+    st.title("Add a New Transaction")
+    transaction_type = st.selectbox("Transaction Type", ["Income", "Expense", "Transfer"])
+    amount = st.number_input("Amount", min_value=0.01, step=0.01)
+    category = st.text_input("Category")
+    date = st.date_input("Date")
+    account = st.text_input("Account")
+    
+    if st.button("Add Transaction"):
+        # Insert transaction into the database
+        st.success(f"Transaction of {amount} added successfully!")
 
-        if choice == "Home":
-            st.subheader("Welcome to the Personal Finance Tracker")
-        elif choice == "Transaction Tracking":
-            st.subheader("Transaction Tracking Page")
-            # Add functionality for transaction tracking
-        elif choice == "Budget Allocation":
-            st.subheader("Budget Allocation Page")
-            # Add functionality for budget allocation
-        elif choice == "Account Management":
-            st.subheader("Account Management Page")
-            # Add functionality for account management
-        elif choice == "Logout":
-            st.session_state.clear()  # Clear all session state
-            st.experimental_rerun()  # Refresh the app to return to the login page
+# Transaction History Page
+def display_transaction_history():
+    st.title("Transaction History")
+    # Fetch from the MySQL database (dummy data for now)
+    transactions = [
+        {"Date": "2024-01-01", "Type": "Income", "Amount": 500, "Category": "Salary", "Account": "Bank"},
+        {"Date": "2024-01-05", "Type": "Expense", "Amount": -100, "Category": "Groceries", "Account": "Bank"},
+    ]
+    st.table(transactions)
 
-    # If the user is not logged in, show login/signup options
-    else:
-        st.sidebar.title("Menu")
-        choice = st.sidebar.selectbox("Menu", ["Login", "Sign Up"])
-
-        if choice == "Login":
-            login()  # Call the login function
-        elif choice == "Sign Up":
-            sign_up()  # Call the sign-up function
-
-if __name__ == "__main__":
-    main()
-
+# Handle login and redirect to dashboard after login
+if st.session_state.logged_in:
+    main_dashboard()
+else:
+    login_signup_tab = st.sidebar.radio("Login/Sign Up", ("Login", "Sign Up"))
+    if login_signup_tab == "Login":
+        login_form()
+    elif login_signup_tab == "Sign Up":
+        signup_form()

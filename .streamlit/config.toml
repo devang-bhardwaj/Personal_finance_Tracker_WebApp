@@ -1,0 +1,14 @@
+[theme]
+primaryColor = "#1a73e8"
+backgroundColor = "#0e1117"
+secondaryBackgroundColor = "#26282e"
+textColor = "#ffffff"
+font = "sans serif"
+
+# Hide the 3-dot menu and running man animation
+[server]
+headless = true
+
+[runner]
+magicEnabled = false
+showRunningStatus = false
