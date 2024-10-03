@@ -1,3 +1,0 @@
-import os
-
-os.environ['STREAMLIT_SERVER_PORT'] = os.getenv('PORT')
